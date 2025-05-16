@@ -17,49 +17,61 @@ const StepIdBack: React.FC<StepIdBackProps> = ({ onNext, onBack }) => {
 
   useEffect(() => {
     const handleOrientation = () => {
-      setIsLandscape(window.orientation === 90 || window.orientation === -90);
+      const isLandscapeMode = window.matchMedia("(orientation: landscape)").matches;
+      setIsLandscape(isLandscapeMode);
+      
+      if (isLandscapeMode && !stream) {
+        startCamera();
+      } else if (!isLandscapeMode && stream) {
+        stopCamera();
+      }
     };
 
     window.addEventListener('orientationchange', handleOrientation);
-    handleOrientation(); // Check initial orientation
+    window.addEventListener('resize', handleOrientation);
+    
+    // Check initial orientation
+    handleOrientation();
 
     return () => {
       window.removeEventListener('orientationchange', handleOrientation);
+      window.removeEventListener('resize', handleOrientation);
+      stopCamera();
     };
-  }, []);
+  }, [stream]);
 
-  useEffect(() => {
-    const startCamera = async () => {
-      if (!isLandscape) return;
-
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-          audio: false,
-        });
-        setStream(mediaStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-        }
-      } catch (err) {
-        setError('No se pudo acceder a la cámara. Por favor, verifica los permisos.');
-        console.error('Error accessing camera:', err);
-      }
-    };
-
-    if (isLandscape) {
-      startCamera();
-    } else if (stream) {
+  const stopCamera = () => {
+    if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
-    }
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
-    };
-  }, [isLandscape]);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      };
+
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setError('');
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      setError('No se pudo acceder a la cámara. Por favor, verifica los permisos.');
+    }
+  };
 
   const takePicture = () => {
     if (videoRef.current && canvasRef.current) {
