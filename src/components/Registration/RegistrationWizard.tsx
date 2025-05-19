@@ -11,7 +11,7 @@ import StepIdBackPrev from './StepIdBackPrev';
 import StepReview from './StepReview';
 import StepSubmit from './StepSubmit';
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 4;
 
 const RegistrationWizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -35,18 +35,10 @@ const RegistrationWizard = () => {
       case 1:
         return <StepSelfie onNext={goToNext} />;
       case 2:
-        return <StepSelfiePrev onNext={goToNext} onBack={goToPrevious} />;
-      case 3:
         return <StepIdFront onNext={goToNext} onBack={goToPrevious} />;
-      case 4:
-        return <StepIdFrontPrev onNext={goToNext} onBack={goToPrevious} />;
-      case 5:
+      case 3:
         return <StepIdBack onNext={goToNext} onBack={goToPrevious} />;
-      case 6:
-        return <StepIdBackPrev onNext={goToNext} onBack={goToPrevious} />;
-      case 7:
-        return <StepReview onNext={goToNext} onBack={goToPrevious} />;
-      case 8:
+      case 4:
         return <StepSubmit onDone={() => navigate('/login')} />;
       default:
         return <StepSelfie onNext={goToNext} />;
@@ -58,7 +50,7 @@ const RegistrationWizard = () => {
       <header className="bg-white shadow-sm py-4 px-6">
         <div className="flex justify-between items-center">
           <h1 className="text-lg font-semibold text-gray-800">Verificación de Identidad</h1>
-          {currentStep < 8 && (
+          {currentStep < 4 && (
             <button
               onClick={() => navigate('/login')}
               className="text-gray-500 hover:text-gray-700 text-sm"

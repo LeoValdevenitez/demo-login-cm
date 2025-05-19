@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useUserAuth } from '../../contexts/UserAuthContext';
 import { Camera } from 'lucide-react';
+import { getCamera, stopStream, captureImageFromVideo } from '../../utils/cameraUtils';
 
 interface StepSelfieProps {
   onNext: () => void;
@@ -10,50 +11,52 @@ const StepSelfie: React.FC<StepSelfieProps> = ({ onNext }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { updateRegistrationData } = useUserAuth();
 
   useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' },
-          audio: false,
-        });
-        setStream(mediaStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-        }
-      } catch (err) {
-        setError('No se pudo acceder a la cámara. Por favor, verifica los permisos.');
-        console.error('Error accessing camera:', err);
+    const initCamera = async () => {
+      const { stream: cameraStream, error: cameraError } = await getCamera('user');
+      
+      if (cameraError) {
+        setError(cameraError);
+        return;
+      }
+
+      if (cameraStream && videoRef.current) {
+        setStream(cameraStream);
+        videoRef.current.srcObject = cameraStream;
+        setError('');
       }
     };
 
-    startCamera();
+    initCamera();
 
     return () => {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        stopStream(stream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+        setStream(null);
       }
     };
   }, []);
 
   const takePicture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+    if (!videoRef.current) return;
 
-      if (context) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imageData = canvas.toDataURL('image/jpeg');
-        updateRegistrationData({ selfieImage: imageData });
-        onNext();
+    const imageData = captureImageFromVideo(videoRef.current);
+    if (imageData) {
+      updateRegistrationData({ selfieImage: imageData });
+      // Detener la cámara después de capturar
+      if (stream) {
+        stopStream(stream);
+        videoRef.current.srcObject = null;
+        setStream(null);
       }
+      onNext();
+    } else {
+      setError('No se pudo capturar la imagen. Por favor, inténtalo de nuevo.');
     }
   };
 
@@ -78,7 +81,6 @@ const StepSelfie: React.FC<StepSelfieProps> = ({ onNext }) => {
               playsInline 
               className="h-full w-full object-cover transform -scale-x-100" 
             />
-            <canvas ref={canvasRef} className="hidden" />
           </>
         )}
       </div>

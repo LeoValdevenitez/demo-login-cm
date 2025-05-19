@@ -26,10 +26,10 @@ const StepSubmit: React.FC<StepSubmitProps> = ({ onDone }) => {
           if (currentProgress >= 100) {
             clearInterval(interval);
           }
-        }, 500);
+        }, 2500);
 
         // Simular API call con axios
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 15000));
         
         // Mock response
         setIsSubmitting(false);

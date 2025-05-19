@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useUserAuth } from '../../contexts/UserAuthContext';
-import { Camera, Smartphone } from 'lucide-react';
+import { Camera } from 'lucide-react';
+import { getCamera, stopStream, captureImageFromVideo } from '../../utils/cameraUtils';
 
 interface StepIdBackProps {
   onNext: () => void;
@@ -10,100 +11,51 @@ interface StepIdBackProps {
 const StepIdBack: React.FC<StepIdBackProps> = ({ onNext, onBack }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
-  const [isLandscape, setIsLandscape] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { updateRegistrationData } = useUserAuth();
 
   useEffect(() => {
-    const handleOrientation = () => {
-      const isLandscapeMode = window.matchMedia("(orientation: landscape)").matches;
-      setIsLandscape(isLandscapeMode);
+    const initCamera = async () => {
+      const { stream: cameraStream, error: cameraError } = await getCamera('environment');
       
-      if (isLandscapeMode && !stream) {
-        startCamera();
-      } else if (!isLandscapeMode && stream) {
-        stopCamera();
+      if (cameraError) {
+        setError(cameraError);
+        return;
+      }
+
+      if (cameraStream && videoRef.current) {
+        setStream(cameraStream);
+        videoRef.current.srcObject = cameraStream;
+        setError('');
       }
     };
 
-    window.addEventListener('orientationchange', handleOrientation);
-    window.addEventListener('resize', handleOrientation);
-    
-    // Check initial orientation
-    handleOrientation();
+    initCamera();
 
     return () => {
-      window.removeEventListener('orientationchange', handleOrientation);
-      window.removeEventListener('resize', handleOrientation);
-      stopCamera();
-    };
-  }, [stream]);
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
+      stopStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-    }
-  };
-
-  const startCamera = async () => {
-    try {
-      const constraints = {
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: false
-      };
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-      setError('');
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      setError('No se pudo acceder a la cámara. Por favor, verifica los permisos.');
-    }
-  };
+    };
+  }, []);
 
   const takePicture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+    if (!videoRef.current) return;
 
-      if (context) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imageData = canvas.toDataURL('image/jpeg');
-        updateRegistrationData({ idBackImage: imageData });
-        onNext();
+    const imageData = captureImageFromVideo(videoRef.current);
+    if (imageData) {
+      updateRegistrationData({ idBackImage: imageData });
+      if (stream) {
+        stopStream(stream);
+        videoRef.current.srcObject = null;
+        setStream(null);
       }
+      onNext();
+    } else {
+      setError('No se pudo capturar la imagen. Por favor, inténtalo de nuevo.');
     }
   };
-
-  if (!isLandscape) {
-    return (
-      <div className="flex flex-col flex-1 items-center justify-center p-4">
-        <div className="text-center mb-8">
-          <Smartphone className="w-16 h-16 mx-auto mb-4 text-[#e50046] animate-pulse" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Gira tu dispositivo</h2>
-          <p className="text-gray-600">
-            Para una mejor captura del documento, por favor gira tu teléfono en posición horizontal
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col flex-1 items-center justify-between">
@@ -114,19 +66,32 @@ const StepIdBack: React.FC<StepIdBackProps> = ({ onNext, onBack }) => {
         </p>
       </div>
 
-      <div className="relative flex-1 w-full flex items-center justify-center">
+      <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden">
         {error ? (
           <div className="bg-red-50 p-4 rounded-lg text-red-500">{error}</div>
         ) : (
           <>
-            <div className="absolute w-11/12 h-4/5 border-4 border-[#e50046] rounded-lg opacity-70 z-10"></div>
+            <div 
+              className="absolute z-10"
+              style={{
+                width: 'calc(85.60vw * 0.9)', // 85.60mm ajustado a viewport width
+                height: 'calc(53.98vw * 0.9)', // 53.98mm ajustado a viewport width
+                maxWidth: '500px', // Límite máximo para pantallas grandes
+                maxHeight: '314px', // Proporción mantenida para el límite máximo
+                border: '4px solid #e50046',
+                borderRadius: '8px',
+                opacity: 0.7,
+              }}
+            ></div>
             <video 
               ref={videoRef} 
               autoPlay 
               playsInline 
-              className="h-full w-full object-cover" 
+              className="w-full h-full object-cover"
+              style={{
+                maxHeight: '80vh', // Limitar altura máxima al 80% del viewport
+              }}
             />
-            <canvas ref={canvasRef} className="hidden" />
           </>
         )}
       </div>
